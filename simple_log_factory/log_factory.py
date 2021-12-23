@@ -148,7 +148,3 @@ class LogContextGenerators:
                           warning=lambda msg: self.logger.warning(msg, extra=kwargs),
                           info=lambda msg: self.logger.info(msg, extra=kwargs),
                           debug=lambda msg: self.logger.debug(msg, extra=kwargs))
-
-
-if __name__ == '__main__':
-    pass
