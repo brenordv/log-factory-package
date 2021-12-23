@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""simple_log_factory.py - Simple wrapper to make things easier when using the default Python logging package.
+"""log_factory.py - Simple wrapper to make things easier when using the default Python logging package.
 This script will create a logging object with a set of default objects. The current configuration is the most common
 in my usage and that motivated the creation of this script.
 

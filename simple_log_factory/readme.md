@@ -44,4 +44,4 @@ logger = log_factory("my_log1", unique_handler_types=True)
 This is a very early stage project, just a few functionalities. If you find any bugs, please contact me (or feel free to open an issue on Github).
 
 - [Github Project: https://github.com/brenordv/log-factory-package](https://github.com/brenordv/log-factory-package)
-- [PyPi Page: https://pypi.org/project/simple-log-factory/0.0.1/](https://pypi.org/project/simple-log-factory/0.0.1/)
+- [PyPi Page: https://pypi.org/project/simple-log-factory](https://pypi.org/project/simple-log-factory)
