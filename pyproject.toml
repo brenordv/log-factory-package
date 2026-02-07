@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "simple_log_factory"
 version = "1.0.0"
 description = "Simple Log Factory – a lightweight wrapper around Python's logging module."
-readme = "readme.md"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
 authors = [
@@ -16,7 +16,6 @@ keywords = ["python", "log", "logging", "factory"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -49,7 +48,7 @@ Issues = "https://github.com/brenordv/log-factory-package/issues"
 include = ["simple_log_factory*"]
 
 [tool.setuptools.package-data]
-simple_log_factory = ["py.typed", "readme.md", "changelog.md"]
+simple_log_factory = ["py.typed", "README.md", "LICENSE.md", "CHANGELOG.md"]
 
 [tool.black]
 line-length = 120
