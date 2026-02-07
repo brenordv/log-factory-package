@@ -1,150 +1,251 @@
 # -*- coding: utf-8 -*-
+"""log_factory.py - Simple wrapper around Python's logging module.
 
-"""log_factory.py - Simple wrapper to make things easier when using the default Python logging package.
-This script will create a logging object with a set of default objects. The current configuration is the most common
-in my usage and that motivated the creation of this script.
-
+Creates pre-configured logging objects with sensible defaults for console
+and/or file output, optional daily rotation, and handler deduplication.
 """
 
+from __future__ import annotations
+
 import logging
+import warnings
+from dataclasses import dataclass
 from logging.handlers import TimedRotatingFileHandler
+from typing import Callable, List, Optional, Sequence, Union
 
 
-def _get_handlers_(to_console, log_file, rotate_file_by_day):
+def _get_handlers(
+    to_console: bool,
+    log_file: Optional[str],
+    rotate_file_by_day: bool,
+) -> List[logging.Handler]:
+    """Build a list of logging handlers based on the requested outputs.
+
+    Args:
+        to_console: If ``True``, include a :class:`~logging.StreamHandler`.
+        log_file: Path for a file handler. ``None`` means no file output.
+        rotate_file_by_day: If ``True`` **and** *log_file* is set, use a
+            :class:`~logging.handlers.TimedRotatingFileHandler` that rotates
+            at midnight.
+
+    Returns:
+        A list of freshly created handler instances.
     """
-    Creates a list with the handlers that will be used with the log object.
-    :param to_console: should log to console
-    :param log_file: should log to file
-    :param rotate_file_by_day: if logging to file, should rotate log_file by day
-    :return: list of handlers.
-    """
-    # List of handlers that will be added to the log.
-    handlers = []
+    handlers: List[logging.Handler] = []
 
     if to_console:
-        # Adding console logging handler...
         handlers.append(logging.StreamHandler())
 
     if log_file:
         if rotate_file_by_day:
-            # Adding handler for a file log that resets at midnight.
             handlers.append(TimedRotatingFileHandler(log_file, when="midnight"))
         else:
-            # Adding common file log.
             handlers.append(logging.FileHandler(log_file))
 
     return handlers
 
 
-def _check_unique_handler_types_(logger, unique_handler_types):
+def _check_unique_handler_types(
+    logger: logging.Logger,
+    unique_handler_types: bool,
+) -> logging.Logger:
+    """Remove duplicate handler sets inherited from a parent logger.
+
+    When *unique_handler_types* is ``True`` and the logger's handler list is
+    identical to its parent's, the logger's handlers are cleared so that
+    messages are not emitted twice.
+
+    Args:
+        logger: The logger to inspect.
+        unique_handler_types: Whether deduplication is active.
+
+    Returns:
+        The (possibly modified) logger.
     """
-    Checks for duplicated handler types between logger and it's parent.
-    :param logger: logger object
-    :param unique_handler_types: if the handler types should be unique
-    :return: logger object
-    """
-    if unique_handler_types and logger.handlers == logger.parent.handlers:
-        logger.handlers = list()
+    if (
+        unique_handler_types
+        and logger.parent is not None
+        and logger.handlers == logger.parent.handlers
+    ):
+        logger.handlers = []
 
     return logger
 
 
-def _attach_handlers_(logger, handlers, log_level, formatter, unique_handler_types):
+def _attach_handlers(
+    logger: logging.Logger,
+    handlers: Sequence[logging.Handler],
+    log_level: Union[int, str],
+    formatter: logging.Formatter,
+    unique_handler_types: bool,
+) -> logging.Logger:
+    """Attach *handlers* to *logger*, optionally skipping duplicate types.
+
+    Args:
+        logger: Target logger.
+        handlers: Handlers to attach.
+        log_level: Level applied to each handler.
+        formatter: Formatter applied to each handler.
+        unique_handler_types: If ``True``, a handler whose type already
+            exists on the logger (or its parent) is skipped.
+
+    Returns:
+        The logger with newly attached handlers.
     """
-    Attaches each handler to the log object provided.
-    :param logger: logging object
-    :param handlers: list of handlers to attach
-    :param log_level: log level for each handler
-    :param formatter: format that will be used by the handler
-    :param unique_handler_types: if true, will only add one handler of each type.
-    :return: logging object with handlers.
-    """
-    # Adding handlers to the object.
-    handler_list = logger.handlers
-    handler_list.extend(logger.parent.handlers)
+    # Bug 4 fix: copy the handler list instead of aliasing it.
+    handler_list: List[logging.Handler] = list(logger.handlers)
+
+    # Bug 2/3 fix: guard against logger.parent being None.
+    if logger.parent is not None:
+        handler_list.extend(logger.parent.handlers)
+
     handler_types = [type(h) for h in handler_list]
+
     for handler in handlers:
-        # If logger object is set to use only one handler of each type and already have a handler of that type,
-        # will skip adding it.
         if unique_handler_types and (type(handler) in handler_types):
             continue
 
-        # but first, let's configure each handler.
         handler.setFormatter(formatter)
         handler.setLevel(log_level)
-
-        # Adding the handler to the logging object.
         logger.addHandler(handler)
 
     return logger
 
 
-def log_factory(log_name, log_file=None, rotate_file_by_day=True, log_level=logging.DEBUG, to_console=True,
-                custom_handlers=None, log_format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                log_time_format=None, unique_handler_types=False):
+def log_factory(
+    log_name: str,
+    log_file: Optional[str] = None,
+    rotate_file_by_day: bool = True,
+    log_level: Union[int, str] = logging.DEBUG,
+    to_console: bool = True,
+    custom_handlers: Optional[Union[logging.Handler, List[logging.Handler]]] = None,
+    log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    log_time_format: Optional[str] = None,
+    unique_handler_types: bool = False,
+) -> logging.Logger:
+    """Create a pre-configured: class:`~logging.Logger`.
+
+    Args:
+        log_name: Name of the logger (typically ``__name__`` of the caller).
+        log_file: Optional file path for file-based logging.
+        rotate_file_by_day: Rotate the log file daily at midnight.
+            Only takes effect when *log_file* is set.
+        log_level: Logging level (default ``DEBUG``). Accepts an ``int`` or
+            a case-insensitive level name such as ``"INFO"``.
+        to_console: Emit log records to *stderr* via a
+            :class:`~logging.StreamHandler`.
+        custom_handlers: One or more additional handlers to attach.
+        log_format: :func:`logging.Formatter` format string.
+        log_time_format: Optional *datefmt* passed to the formatter.
+        unique_handler_types: When ``True``, only one handler of each type
+            will be attached (useful to prevent duplicate output).
+
+    Returns:
+        A fully configured: class:`~logging.Logger` instance.
+
+    Raises:
+        ValueError: If *log_name* is not a non-empty string.
+
+    Example::
+
+        from simple_log_factory import log_factory
+
+        logger = log_factory(__name__)
+        logger.info("Hello, world!")
     """
-    Simple log factory using default Python logging package.
-        :param log_time_format: Custom format for time section of the log.
-        :param log_name: Name of the logger. (Should be the variable __main__ from the caller)
-        :param log_file: If informed, will save log to that log.
-        :param rotate_file_by_day: If true, will rotate the log file by day. (at midnight)
-        :param log_level: Level of the log. (Default: 10 - DEBUG)
-        :param to_console: If should show log on console.
-        :param custom_handlers: will add any custom logging handlers informed here.
-        :param log_format: Format of the log messages.
-        :param unique_handler_types: if true, will only add one handler of each type.
-        :returns: Logging object with the corresponding configurations.
-    """
-    # Defining formatter.
-    if rotate_file_by_day:
-        # If we're going to rotate our log files by day, we don't need to clutter-up each line with the current date.
+    # log_name validation
+    if not isinstance(log_name, str) or not log_name.strip():
+        raise ValueError("log_name must be a non-empty string.")
+
+    if rotate_file_by_day and log_file:
         formatter = logging.Formatter(log_format, "%H:%M:%S")
     elif log_time_format:
         formatter = logging.Formatter(log_format, log_time_format)
     else:
         formatter = logging.Formatter(log_format)
 
-    # Getting handlers
-    handlers = _get_handlers_(to_console=to_console, log_file=log_file, rotate_file_by_day=rotate_file_by_day)
+    handlers = _get_handlers(
+        to_console=to_console,
+        log_file=log_file,
+        rotate_file_by_day=rotate_file_by_day,
+    )
 
-    # Adding custom handlers, if any...
     if custom_handlers:
         if isinstance(custom_handlers, list):
             handlers.extend(custom_handlers)
         else:
             handlers.append(custom_handlers)
 
-    # Creating the log object.
     logger = logging.getLogger(log_name)
 
-    # Setting log level to the root logger. If we don't do this, it will only log warnings+..
     log_level = log_level.strip().upper() if isinstance(log_level, str) else log_level
     logger.setLevel(log_level)
 
-    # Returning the logging object ready to use.
-    logger = _attach_handlers_(logger=logger, handlers=handlers, formatter=formatter, log_level=log_level,
-                               unique_handler_types=unique_handler_types)
+    logger = _attach_handlers(
+        logger=logger,
+        handlers=handlers,
+        formatter=formatter,
+        log_level=log_level,
+        unique_handler_types=unique_handler_types,
+    )
 
-    # Double check for unique handler types and return the logger.
-    return _check_unique_handler_types_(logger=logger, unique_handler_types=unique_handler_types)
+    return _check_unique_handler_types(logger=logger, unique_handler_types=unique_handler_types)
 
 
+@dataclass(frozen=True)
 class LogContext:
-    def __init__(self, exception, error, warning, info, debug):
-        self.exception = exception
-        self.error = error
-        self.warning = warning
-        self.info = info
-        self.debug = debug
+    """Immutable container of pre-bound logging callables for a single context.
+
+    Each attribute is a callable that accepts a message string and logs it at
+    the corresponding level, automatically injecting any extra context passed
+    when the instance was created via
+    :meth:`LogContextGenerators.get_logger_for_context`.
+
+    Attributes:
+        exception: Logs at ``EXCEPTION`` level.
+        error: Logs at ``ERROR`` level.
+        warning: Logs at ``WARNING`` level.
+        info: Logs at ``INFO`` level.
+        debug: Logs at ``DEBUG`` level.
+    """
+
+    exception: Callable[[str], None]
+    error: Callable[[str], None]
+    warning: Callable[[str], None]
+    info: Callable[[str], None]
+    debug: Callable[[str], None]
 
 
 class LogContextGenerators:
-    def __init__(self, **kwargs):
-        self.logger = log_factory(**kwargs)
+    """Factory that produces :class:`LogContext` instances bound to a single logger.
 
-    def get_logger_for_context(self, **kwargs) -> LogContext:
-        return LogContext(exception=lambda msg: self.logger.exception(msg, extra=kwargs),
-                          error=lambda msg: self.logger.error(msg, extra=kwargs),
-                          warning=lambda msg: self.logger.warning(msg, extra=kwargs),
-                          info=lambda msg: self.logger.info(msg, extra=kwargs),
-                          debug=lambda msg: self.logger.debug(msg, extra=kwargs))
+    All keyword arguments are forwarded to :func:`log_factory`.
+
+    Example::
+
+        gen = LogContextGenerators(log_name="my_app")
+        ctx = gen.get_logger_for_context(request_id="abc-123")
+        ctx.info("Processing request")
+    """
+
+    def __init__(self, **kwargs: object):
+        self.logger: logging.Logger = log_factory(**kwargs)
+
+    def get_logger_for_context(self, **kwargs: object) -> LogContext:
+        """Return a :class:`LogContext` with *kwargs* injected as ``extra``.
+
+        Args:
+            **kwargs: Arbitrary key-value pairs passed as the ``extra``
+                dict on every log call.
+
+        Returns:
+            A frozen :class:`LogContext` whose methods include the given
+            extra context.
+        """
+        return LogContext(
+            exception=lambda msg: self.logger.exception(msg, extra=kwargs),
+            error=lambda msg: self.logger.error(msg, extra=kwargs),
+            warning=lambda msg: self.logger.warning(msg, extra=kwargs),
+            info=lambda msg: self.logger.info(msg, extra=kwargs),
+            debug=lambda msg: self.logger.debug(msg, extra=kwargs),
+        )
