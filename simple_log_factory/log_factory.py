@@ -8,7 +8,6 @@ and/or file output, optional daily rotation, and handler deduplication.
 from __future__ import annotations
 
 import logging
-import warnings
 from dataclasses import dataclass
 from logging.handlers import TimedRotatingFileHandler
 from typing import Callable, List, Optional, Sequence, Union

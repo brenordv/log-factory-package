@@ -7,8 +7,6 @@ from logging.handlers import TimedRotatingFileHandler
 import pytest
 
 from simple_log_factory.log_factory import (
-    LogContext,
-    LogContextGenerators,
     _attach_handlers,
     _check_unique_handler_types,
     _get_handlers,
