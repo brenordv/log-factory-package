@@ -4,7 +4,8 @@ Thank you for your interest in contributing! This guide will help you get starte
 
 ## Prerequisites
 
-- Python 3.9 or newer
+- Python 3.11 or newer
+- [uv](https://docs.astral.sh/uv/)
 - Git
 
 ## Setting Up the Development Environment
@@ -16,34 +17,25 @@ Thank you for your interest in contributing! This guide will help you get starte
    cd log-factory-package
    ```
 
-2. **Create a virtual environment**
+2. **Create the environment with the dev dependencies**
 
    ```bash
-   python -m venv .venv
-
-   # Linux / macOS
-   source .venv/bin/activate
-
-   # Windows
-   .venv\Scripts\activate
+   uv sync
    ```
 
-3. **Install the package in editable mode with dev dependencies**
-
-   ```bash
-   pip install -e ".[dev]"
-   ```
+   `uv sync` installs the package in editable mode plus the `dev` dependency group from `pyproject.toml`.
+   Without uv, `pip install -e . --group dev` inside a virtual environment does the same, with a pip recent
+   enough to support `--group` (upgrade it first with `python -m pip install --upgrade pip`).
 
 ## Code Style
 
 All style settings live in `pyproject.toml`. The key points:
 
-| Tool      | Purpose         | Config highlights                                |
-|-----------|-----------------|--------------------------------------------------|
-| **Black** | Code formatting | `line-length = 120`, `target-version = ["py39"]` |
-| **isort** | Import sorting  | `profile = "black"`, `line_length = 120`         |
-| **Ruff**  | Linting         | `select = ["E", "F", "W", "I", "N", "UP"]`       |
-| **mypy**  | Type checking   | `disallow_untyped_defs = true`                   |
+| Tool             | Purpose                   | Config highlights                                         |
+|------------------|---------------------------|-----------------------------------------------------------|
+| **Ruff format**  | Code formatting           | `line-length = 120`, `target-version = "py311"`           |
+| **Ruff**         | Linting and import sorting | `select = ["E", "F", "W", "I", "N", "UP"]`               |
+| **mypy**         | Type checking             | `disallow_untyped_defs = true`                            |
 
 ### Naming Conventions
 
@@ -81,19 +73,16 @@ def my_function(name: str, count: int = 1) -> str:
 
 ```bash
 # Format code
-black .
+uv run ruff format .
 
-# Sort imports
-isort .
-
-# Lint
-ruff check .
+# Lint (includes import sorting)
+uv run ruff check .
 
 # Type check
-mypy simple_log_factory/
+uv run mypy simple_log_factory/
 
 # Run tests with coverage
-pytest --cov=simple_log_factory --cov-report=term-missing
+uv run pytest --cov=simple_log_factory --cov-report=term-missing
 ```
 
 All of the above must pass cleanly before a pull request can be merged.
@@ -111,13 +100,13 @@ Tests live in the `tests/` directory and use **pytest**. When writing tests:
 
 ```bash
 # Run the full suite
-pytest -v
+uv run pytest -v
 
 # Run a specific test file
-pytest tests/test_log_factory.py
+uv run pytest tests/test_log_factory.py
 
 # Run a single test
-pytest tests/test_log_factory.py::TestLogFactory::test_returns_logger
+uv run pytest tests/test_log_factory.py::TestLogFactory::test_returns_logger
 ```
 
 ## Making Changes
@@ -136,7 +125,7 @@ pytest tests/test_log_factory.py::TestLogFactory::test_returns_logger
    an `Unreleased` heading at the top of the file.
 
 5. **Open a pull request** against `master`. The CI pipeline will
-   automatically run the test suite across Python 3.9 - 3.14.
+   automatically run the test suite across Python 3.11 - 3.14.
 
 ## Pull Request Guidelines
 

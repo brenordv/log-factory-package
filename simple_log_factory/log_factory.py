@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """log_factory.py - Simple wrapper around Python's logging module.
 
 Creates pre-configured logging objects with sensible defaults for console
@@ -8,16 +7,19 @@ and/or file output, optional daily rotation, and handler deduplication.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from logging.handlers import TimedRotatingFileHandler
-from typing import Callable, List, Optional, Sequence, Union
+from typing import Any
+
+_ROTATING_FILE_TIME_FORMAT = "%H:%M:%S"
 
 
 def _get_handlers(
     to_console: bool,
-    log_file: Optional[str],
+    log_file: str | None,
     rotate_file_by_day: bool,
-) -> List[logging.Handler]:
+) -> list[logging.Handler]:
     """Build a list of logging handlers based on the requested outputs.
 
     Args:
@@ -30,7 +32,7 @@ def _get_handlers(
     Returns:
         A list of freshly created handler instances.
     """
-    handlers: List[logging.Handler] = []
+    handlers: list[logging.Handler] = []
 
     if to_console:
         handlers.append(logging.StreamHandler())
@@ -61,11 +63,7 @@ def _check_unique_handler_types(
     Returns:
         The (possibly modified) logger.
     """
-    if (
-        unique_handler_types
-        and logger.parent is not None
-        and logger.handlers == logger.parent.handlers
-    ):
+    if unique_handler_types and logger.parent is not None and logger.handlers == logger.parent.handlers:
         logger.handlers = []
 
     return logger
@@ -74,7 +72,7 @@ def _check_unique_handler_types(
 def _attach_handlers(
     logger: logging.Logger,
     handlers: Sequence[logging.Handler],
-    log_level: Union[int, str],
+    log_level: int | str,
     formatter: logging.Formatter,
     unique_handler_types: bool,
 ) -> logging.Logger:
@@ -91,10 +89,10 @@ def _attach_handlers(
     Returns:
         The logger with newly attached handlers.
     """
-    # Bug 4 fix: copy the handler list instead of aliasing it.
-    handler_list: List[logging.Handler] = list(logger.handlers)
+    # A copy, so extending it with the parent's handlers never touches logger.handlers.
+    handler_list: list[logging.Handler] = list(logger.handlers)
 
-    # Bug 2/3 fix: guard against logger.parent being None.
+    # The root logger has no parent.
     if logger.parent is not None:
         handler_list.extend(logger.parent.handlers)
 
@@ -113,16 +111,16 @@ def _attach_handlers(
 
 def log_factory(
     log_name: str,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
     rotate_file_by_day: bool = True,
-    log_level: Union[int, str] = logging.DEBUG,
+    log_level: int | str = logging.DEBUG,
     to_console: bool = True,
-    custom_handlers: Optional[Union[logging.Handler, List[logging.Handler]]] = None,
+    custom_handlers: logging.Handler | list[logging.Handler] | None = None,
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    log_time_format: Optional[str] = None,
+    log_time_format: str | None = None,
     unique_handler_types: bool = False,
 ) -> logging.Logger:
-    """Create a pre-configured: class:`~logging.Logger`.
+    """Create a pre-configured :class:`~logging.Logger`.
 
     Args:
         log_name: Name of the logger (typically ``__name__`` of the caller).
@@ -135,12 +133,14 @@ def log_factory(
             :class:`~logging.StreamHandler`.
         custom_handlers: One or more additional handlers to attach.
         log_format: :func:`logging.Formatter` format string.
-        log_time_format: Optional *datefmt* passed to the formatter.
+        log_time_format: Optional *datefmt* passed to the formatter. When omitted
+            and a daily-rotating *log_file* is used, the time-only format
+            ``%H:%M:%S`` applies, since the file name already carries the date.
         unique_handler_types: When ``True``, only one handler of each type
             will be attached (useful to prevent duplicate output).
 
     Returns:
-        A fully configured: class:`~logging.Logger` instance.
+        A fully configured :class:`~logging.Logger` instance.
 
     Raises:
         ValueError: If *log_name* is not a non-empty string.
@@ -156,10 +156,10 @@ def log_factory(
     if not isinstance(log_name, str) or not log_name.strip():
         raise ValueError("log_name must be a non-empty string.")
 
-    if rotate_file_by_day and log_file:
-        formatter = logging.Formatter(log_format, "%H:%M:%S")
-    elif log_time_format:
+    if log_time_format:
         formatter = logging.Formatter(log_format, log_time_format)
+    elif rotate_file_by_day and log_file:
+        formatter = logging.Formatter(log_format, _ROTATING_FILE_TIME_FORMAT)
     else:
         formatter = logging.Formatter(log_format)
 
@@ -227,11 +227,14 @@ class LogContextGenerators:
         ctx.info("Processing request")
     """
 
-    def __init__(self, **kwargs: object):
+    def __init__(self, **kwargs: Any) -> None:
         self.logger: logging.Logger = log_factory(**kwargs)
 
     def get_logger_for_context(self, **kwargs: object) -> LogContext:
         """Return a :class:`LogContext` with *kwargs* injected as ``extra``.
+
+        Each callable logs with ``stacklevel=2``, so ``funcName``, ``lineno``
+        and ``pathname`` on the record name the code that called it.
 
         Args:
             **kwargs: Arbitrary key-value pairs passed as the ``extra``
@@ -242,9 +245,9 @@ class LogContextGenerators:
             extra context.
         """
         return LogContext(
-            exception=lambda msg: self.logger.exception(msg, extra=kwargs),
-            error=lambda msg: self.logger.error(msg, extra=kwargs),
-            warning=lambda msg: self.logger.warning(msg, extra=kwargs),
-            info=lambda msg: self.logger.info(msg, extra=kwargs),
-            debug=lambda msg: self.logger.debug(msg, extra=kwargs),
+            exception=lambda msg: self.logger.exception(msg, extra=kwargs, stacklevel=2),
+            error=lambda msg: self.logger.error(msg, extra=kwargs, stacklevel=2),
+            warning=lambda msg: self.logger.warning(msg, extra=kwargs, stacklevel=2),
+            info=lambda msg: self.logger.info(msg, extra=kwargs, stacklevel=2),
+            debug=lambda msg: self.logger.debug(msg, extra=kwargs, stacklevel=2),
         )

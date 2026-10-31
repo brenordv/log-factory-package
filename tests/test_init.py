@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import logging
+from importlib.metadata import version
 
 
 class TestPackageInit:
@@ -28,10 +28,10 @@ class TestPackageInit:
         assert "LogContext" in simple_log_factory.__all__
         assert "LogContextGenerators" in simple_log_factory.__all__
 
-    def test_version(self):
+    def test_version_matches_installed_distribution(self) -> None:
         import simple_log_factory
 
-        assert simple_log_factory.__version__ == "1.0.0"
+        assert simple_log_factory.__version__ == version("simple_log_factory")
 
     def test_log_factory_is_callable_and_works(self):
         from simple_log_factory import log_factory

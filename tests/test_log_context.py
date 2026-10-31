@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import dataclasses
@@ -48,6 +47,20 @@ class TestLogContextGenerators:
         ctx = gen.get_logger_for_context(request_id="abc")
         assert isinstance(ctx, LogContext)
         assert callable(ctx.info)
+
+    @pytest.mark.parametrize("level_method", ["debug", "info", "warning", "error", "exception"])
+    def test_context_callable_records_caller_as_call_site(
+        self, caplog: pytest.LogCaptureFixture, level_method: str
+    ) -> None:
+        gen = LogContextGenerators(log_name="ctx_call_site")
+        ctx = gen.get_logger_for_context(request_id="abc")
+
+        with caplog.at_level(logging.DEBUG, logger="ctx_call_site"):
+            getattr(ctx, level_method)("from the caller")
+
+        record = caplog.records[-1]
+        assert record.funcName == "test_context_callable_records_caller_as_call_site"
+        assert record.filename == "test_log_context.py"
 
     def test_context_logs_message(self, capfd):
         gen = LogContextGenerators(log_name="ctx_gen_log")
