@@ -3,7 +3,7 @@
 A lightweight wrapper around Python's built-in `logging` module that creates
 pre-configured loggers with sensible defaults.
 
-**Requires Python 3.9+**
+**Requires Python 3.11+**
 
 ## Installation
 
@@ -24,8 +24,8 @@ logger.info("Application started")
 
 ### Console + rotating file logger
 
-The file log rotates daily at midnight. The time-only format (`%H:%M:%S`) is
-used automatically for the file handler since the date is encoded in the
+The file log rotates daily at midnight. Unless you pass `log_time_format`, the
+time-only format (`%H:%M:%S`) is used, since the date is encoded in the
 filename.
 
 ```python
@@ -63,7 +63,7 @@ from simple_log_factory import LogContextGenerators
 gen = LogContextGenerators(log_name="my_app")
 ctx = gen.get_logger_for_context(request_id="abc-123", user="alice")
 
-ctx.info("Processing request")   # extra={request_id: "abc-123", user: "alice"}
+ctx.info("Processing request")  # extra={request_id: "abc-123", user: "alice"}
 ctx.error("Something went wrong")
 ```
 

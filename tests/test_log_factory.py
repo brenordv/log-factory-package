@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import logging
@@ -12,7 +11,6 @@ from simple_log_factory.log_factory import (
     _get_handlers,
     log_factory,
 )
-
 
 # ---- _get_handlers ---------------------------------------------------------
 
@@ -65,6 +63,10 @@ class TestLogFactory:
         logger = log_factory("test_level_str", log_level="warning")
         assert logger.level == logging.WARNING
 
+    def test_custom_level_string_with_whitespace_is_normalized(self) -> None:
+        logger = log_factory("test_level_ws", log_level="  info ")
+        assert logger.level == logging.INFO
+
     def test_file_handler(self, tmp_log_file):
         logger = log_factory("test_file", log_file=tmp_log_file, to_console=False)
         handler_types = [type(h) for h in logger.handlers]
@@ -86,6 +88,13 @@ class TestLogFactory:
         logger = log_factory("test_unique", to_console=True, unique_handler_types=True)
         stream_handler_count = sum(1 for h in logger.handlers if isinstance(h, logging.StreamHandler))
         assert stream_handler_count <= 1
+
+    def test_unique_handler_types_second_call_adds_no_duplicate(self) -> None:
+        log_factory("test_unique_twice", unique_handler_types=True)
+
+        logger = log_factory("test_unique_twice", unique_handler_types=True)
+
+        assert [type(h) for h in logger.handlers] == [logging.StreamHandler]
 
     def test_custom_format(self):
         fmt = "%(message)s"
@@ -115,6 +124,17 @@ class TestBugRegressions:
         logger = log_factory("bug1_file", log_file=tmp_log_file, rotate_file_by_day=True)
         for handler in logger.handlers:
             assert handler.formatter.datefmt == "%H:%M:%S"
+
+    def test_explicit_time_format_wins_over_rotating_file_default(self, tmp_log_file: str) -> None:
+        logger = log_factory(
+            "explicit_time_fmt",
+            log_file=tmp_log_file,
+            rotate_file_by_day=True,
+            log_time_format="%Y-%m-%d %H:%M",
+        )
+
+        datefmts = [handler.formatter.datefmt if handler.formatter else None for handler in logger.handlers]
+        assert datefmts == ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M"]
 
     def test_bug2_root_logger_parent_none(self):
         """Bug 2: _check_unique_handler_types must not crash when parent is None."""
